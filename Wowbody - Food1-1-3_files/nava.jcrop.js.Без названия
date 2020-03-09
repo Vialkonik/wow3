@@ -1,0 +1,1080 @@
+/**
+ * NavaJcrop class file.
+ * This extension is a wrapper of http://blueimp.github.io/JavaScript-Load-Image/
+ *
+ * @author Le Phuong <notteen@gmail.com>
+ * @website http://navagroup.net
+ * @version 0.2
+ * @license http://www.opensource.org/licenses/MIT
+ */
+
+function registerNavaJCropUID(uid){
+    $(function () {
+        'use strict';
+        if (typeof uid !== 'undefined'){
+            var uniqueId = uid;
+            var minSize = [100,100/eval('aspectRatio'+uniqueId)];
+            var result = $('#jcrop_result'+uniqueId),
+                exifNode = $('#exif'+uniqueId),
+                thumbNode = $('#thumbnail'+uniqueId),
+                actionsNode = $('#jcrop_actions'+uniqueId),
+                currentFile,
+                replaceResults = function (img) {
+                    var content;
+                    if (!(img.src || img instanceof HTMLCanvasElement)) {
+                        content = $('<span>Loading image file failed</span>');
+                        result.children().replaceWith(content);
+                    } else {
+                        result.prepend(img);
+                        result.attr('style',eval('resultStyle'+uniqueId));
+                        actionsNode.attr('style','text-align: center;');
+                        $('#JcropOverlay'+uniqueId).removeClass('hide');
+                        var imgNode = result.find('img, canvas'),
+                            img = imgNode[0];
+                        imgNode.Jcrop({
+                            aspectRatio: eval('aspectRatio'+uniqueId),
+                            setSelect: [40, 40, img.width - 40, img.height - 40],
+                            minSize: minSize,
+                            allowSelect: false,
+                            onSelect: function (coords) {
+                                coordinates = coords;
+                            }
+                        });
+                    }
+                    if (img.getContext) {
+                        actionsNode.show();
+                    }
+
+                    var scr_w = $(window).width();
+                    var bl_w = $(result).width();
+                    var pos_left = scr_w/2 - bl_w/2;
+                    $(result).css('left',pos_left);
+                    var scr_h = $(window).height()-150;
+                    var bl_h = $('.jcrop-holder > .jcrop-tracker').height()+$(actionsNode).height();
+                    var pos_top = scr_h/2 - bl_h/2;
+                    $(result).css('top',pos_top);
+                    $('#JcropOverlay'+uniqueId).css('display','block');
+                },
+                appendToDiv = function (img){
+                    var content;
+                    if (!(img.src || img instanceof HTMLCanvasElement)) {
+                        content = $('<span>Loading image file failed</span>');
+                        result.children().replaceWith(content);
+                        eval('errorFunction'+uniqueId)();
+                    } else {
+                        var object = $('#jcrop_image'+uniqueId);
+                        object.attr('src',img.toDataURL());
+                        $('.jcrop-holder').remove();
+                        actionsNode.attr('style','display: none;');
+                        result.attr('style','');
+                        //$('canvas').remove();
+                        $('#JcropOverlay'+uniqueId).addClass('hide');
+                        eval('successFunction'+uniqueId)(object,img.toDataURL());
+                    }
+                },
+                displayImage = function (file, options) {
+                    currentFile = file;
+                    if (!loadImage(file, replaceResults, options)) {
+                        result.children().replaceWith(
+                            $('<span>Your browser does not support the URL or FileReader API.</span>')
+                        );
+                    }
+                },
+                displayExifData = function (exif) {
+                    var thumbnail = exif.get('Thumbnail'),
+                        tags = exif.getAll(),
+                        table = exifNode.find('table').empty(),
+                        row = $('<tr></tr>'),
+                        cell = $('<td></td>'),
+                        prop;
+                    if (thumbnail) {
+                        thumbNode.empty();
+                        loadImage(thumbnail, function (img) {
+                            thumbNode.append(img).show();
+                        }, {orientation: exif.get('Orientation')});
+                    }
+                    for (prop in tags) {
+                        if (tags.hasOwnProperty(prop)) {
+                            table.append(
+                                row.clone()
+                                    .append(cell.clone().text(prop))
+                                    .append(cell.clone().text(tags[prop]))
+                            );
+                        }
+                    }
+                    exifNode.show();
+                },
+                dropChangeHandler = function (e) {
+                    e.preventDefault();
+                    e = e.originalEvent;
+                    var containerWidth = eval('resultMaxWidth'+uniqueId);
+                    var windowWidth = window.window.innerWidth;
+                    var windowHeight = window.window.innerHeight;
+                    var containerHeight =  windowHeight / 2 + (windowHeight / 3) ;
+                    if (windowWidth < containerWidth) {
+                        containerWidth = windowWidth - 20;
+                    }
+                    console.log(window.window.innerWidth + " / " + eval('resultMaxWidth'+uniqueId));
+                    var target = e.dataTransfer || e.target,
+                        file = target && target.files && target.files[0],
+                        options = {
+                            maxWidth: containerWidth,
+                            maxHeight: containerHeight,
+                            canvas: true
+                        };
+                    if (!file) {
+                        return;
+                    }
+                    thumbNode.hide();
+                    loadImage.parseMetaData(file, function (data) {
+                        if (data.exif) {
+                            options.orientation = data.exif.get('Orientation');
+                            displayExifData(data.exif);
+                        }
+                        displayImage(file, options);
+                    });
+                },
+                coordinates;
+            if (window.createObjectURL || window.URL || window.webkitURL || window.FileReader) {
+                result.children().hide();
+            }
+            $('#jcrop_fileinput'+uniqueId).on('change', dropChangeHandler);
+            $('#jcrop_edit'+uniqueId).on('click', function (event) {
+                event.preventDefault();
+                var imgNode = result.find('img, canvas'),
+                    img = imgNode[0];
+                imgNode.Jcrop({
+                    aspectRatio: eval('aspectRatio'+uniqueId),
+                    setSelect: [40, 40, img.width - 40, img.height - 40],
+                    minSize: minSize,
+                    allowSelect: false,
+                    onSelect: function (coords) {
+                        coordinates = coords;
+                    }
+                }).parent().on('click', function (event) {
+                    event.preventDefault();
+                });
+            });
+            $('#jcrop_crop'+uniqueId).on('click', function (event) {
+                event.preventDefault();
+                var img = result.find('img, canvas')[0];
+                if (img && coordinates) {
+                    appendToDiv(loadImage.scale(img, {
+                        left: coordinates.x,
+                        top: coordinates.y,
+                        sourceWidth: coordinates.w,
+                        sourceHeight: coordinates.h,
+                        minWidth: eval('resultMinWidth'+uniqueId)
+                    }), event);
+                    coordinates = null;
+                }
+            });
+            $('#jcrop_cancel'+uniqueId).on('click', function (event) {
+                $('.jcrop-holder').remove();
+                actionsNode.attr('style','display: none;');
+                result.attr('style','max-width: 350px;');
+                $('#JcropOverlay'+uniqueId).addClass('hide');
+                $('canvas').remove();
+            });
+            $('#load_image'+uniqueId).hover(function(){
+                $('#load_image_hover'+uniqueId).removeClass('hide');
+            }, function(){
+                $('#load_image_hover'+uniqueId).addClass('hide');
+            });
+        }
+    });
+}
+
+$(function () {
+    'use strict';
+   if (typeof unique_1 !== 'undefined'){
+           var uniqueId_1= unique_1;
+
+
+
+    var minSize = [100,100/aspectRatio_1];
+    var result = $('#jcrop_result'+uniqueId_1),
+        exifNode = $('#exif'+uniqueId_1),
+        thumbNode = $('#thumbnail'+uniqueId_1),
+        actionsNode = $('#jcrop_actions'+uniqueId_1),
+        currentFile,
+        replaceResults = function (img) {
+            var content;
+            if (!(img.src || img instanceof HTMLCanvasElement)) {
+                content = $('<span>Loading image file failed</span>');
+                result.children().replaceWith(content);
+            } else {
+                result.prepend(img);
+                result.attr('style',resultStyle_1);
+                actionsNode.attr('style','text-align: center;');
+                $('#JcropOverlay'+uniqueId_1).removeClass('hide');
+                var imgNode = result.find('img, canvas'),
+                    img = imgNode[0];
+                imgNode.Jcrop({
+                    aspectRatio: aspectRatio_1,
+                    setSelect: [40, 40, img.width - 40, img.height - 40],
+                    minSize: minSize,
+                    allowSelect: false,
+					onSelect: function (coords) {
+						coordinates = coords;
+					}
+                });
+            }
+            if (img.getContext) {
+                actionsNode.show();
+            }
+
+			var scr_w = $('.settings').width();
+				var bl_w = $(result).width();
+				var pos_left = scr_w/2 - bl_w/2;
+				$(result).css('left',pos_left);
+
+				var pos_top = 0;
+				$(result).css('top',pos_top);
+				$('#JcropOverlay'+uniqueId_2).css('display','block');
+        },
+        appendToDiv = function (img){
+            var content;
+            if (!(img.src || img instanceof HTMLCanvasElement)) {
+                content = $('<span>Loading image file failed</span>');
+                result.children().replaceWith(content);
+                errorFunction_1();
+            } else {
+                var object = $('#jcrop_image'+uniqueId_1);
+                object.attr('src',img.toDataURL());
+                $('.jcrop-holder').remove();
+                actionsNode.attr('style','display: none;');
+                result.attr('style','');
+                //$('canvas').remove();
+                $('#JcropOverlay'+uniqueId_1).addClass('hide');
+                successFunction_1(object,img.toDataURL());
+            }
+        },
+        displayImage = function (file, options) {
+            currentFile = file;
+            if (!loadImage(file, replaceResults, options)) {
+                result.children().replaceWith(
+                    $('<span>Your browser does not support the URL or FileReader API.</span>')
+                );
+            }
+        },
+        displayExifData = function (exif) {
+            var thumbnail = exif.get('Thumbnail'),
+                tags = exif.getAll(),
+                table = exifNode.find('table').empty(),
+                row = $('<tr></tr>'),
+                cell = $('<td></td>'),
+                prop;
+            if (thumbnail) {
+                thumbNode.empty();
+                loadImage(thumbnail, function (img) {
+                    thumbNode.append(img).show();
+                }, {orientation: exif.get('Orientation')});
+            }
+            for (prop in tags) {
+                if (tags.hasOwnProperty(prop)) {
+                    table.append(
+                        row.clone()
+                            .append(cell.clone().text(prop))
+                            .append(cell.clone().text(tags[prop]))
+                    );
+                }
+            }
+            exifNode.show();
+        },
+        dropChangeHandler = function (e) {
+            e.preventDefault();
+            e = e.originalEvent;
+            var containerWidth = eval('resultMaxWidth_1');
+            var windowWidth = window.window.innerWidth;
+            var windowHeight = window.window.innerHeight;
+            var containerHeight =  windowHeight / 2 + (windowHeight / 3) ;
+            if (windowWidth < containerWidth) {
+                containerWidth = windowWidth - 20;
+            }
+            var target = e.dataTransfer || e.target,
+                file = target && target.files && target.files[0],
+                options = {
+                    maxWidth: containerWidth,
+                    maxHeight: containerHeight,
+                    canvas: true
+                };
+            if (!file) {
+                return;
+            }
+            thumbNode.hide();
+            loadImage.parseMetaData(file, function (data) {
+                if (data.exif) {
+                    options.orientation = data.exif.get('Orientation');
+                    displayExifData(data.exif);
+                }
+                displayImage(file, options);
+            });
+        },
+        coordinates;
+    if (window.createObjectURL || window.URL || window.webkitURL || window.FileReader) {
+        result.children().hide();
+    }
+    $('#jcrop_fileinput'+uniqueId_1).on('change', dropChangeHandler);
+    $('#jcrop_edit'+uniqueId_1).on('click', function (event) {
+        event.preventDefault();
+        var imgNode = result.find('img, canvas'),
+            img = imgNode[0];
+        imgNode.Jcrop({
+            aspectRatio: aspectRatio_1,
+            setSelect: [40, 40, img.width - 40, img.height - 40],
+            minSize: minSize,
+            allowSelect: false,
+            onSelect: function (coords) {
+                coordinates = coords;
+            }
+        }).parent().on('click', function (event) {
+            event.preventDefault();
+        });
+    });
+    $('#jcrop_crop'+uniqueId_1).on('click', function (event) {
+        event.preventDefault();
+        var img = result.find('img, canvas')[0];
+        if (img && coordinates) {
+            appendToDiv(loadImage.scale(img, {
+                left: coordinates.x,
+                top: coordinates.y,
+                sourceWidth: coordinates.w,
+                sourceHeight: coordinates.h,
+                minWidth: resultMinWidth_1
+            }), event);
+            coordinates = null;
+        }
+    });
+    $('#jcrop_cancel'+uniqueId_1).on('click', function (event) {
+        $('.jcrop-holder').remove();
+        actionsNode.attr('style','display: none;');
+        result.attr('style','max-width: 350px;');
+        $('#JcropOverlay'+uniqueId_1).addClass('hide');
+        $('canvas').remove();
+    });
+    $('#load_image'+uniqueId_1).hover(function(){
+        $('#load_image_hover'+uniqueId_1).removeClass('hide');
+    }, function(){
+        $('#load_image_hover'+uniqueId_1).addClass('hide');
+    });
+}
+
+});
+
+$(function () {
+
+    'use strict';
+    if (typeof unique_2 !== 'undefined'){
+           var uniqueId_2 = unique_2;
+
+
+
+		var minSize = [100,100/eval(aspectRatio_2)];
+		var result = $('#jcrop_result'+uniqueId_2),
+			exifNode = $('#exif'+uniqueId_2),
+			thumbNode = $('#thumbnail'+uniqueId_2),
+			actionsNode = $('#jcrop_actions'+uniqueId_2),
+			currentFile,
+			replaceResults = function (img) {
+				var content;
+				if (!(img.src || img instanceof HTMLCanvasElement)) {
+					content = $('<span>Loading image file failed</span>');
+					result.children().replaceWith(content);
+				} else {
+					result.prepend(img);
+					result.attr('style',resultStyle_2);
+					actionsNode.attr('style','text-align: center;');
+					$('#JcropOverlay'+uniqueId_2).removeClass('hide');
+					var imgNode = result.find('img, canvas'),
+						img = imgNode[0];
+					imgNode.Jcrop({
+						aspectRatio: eval(aspectRatio_2),
+						setSelect: [40, 40, img.width - 40, img.height - 40],
+						minSize: minSize,
+						allowSelect: false,
+						onSelect: function (coords) {
+							coordinates = coords;
+						}
+					});
+				}
+				if (img.getContext) {
+					actionsNode.show();
+				}
+
+				var scr_w = $(window).width();
+				var bl_w = $(result).width();
+				var pos_left = scr_w/2 - bl_w/2;
+				$(result).css('left',pos_left);
+				var scr_h = $(window).height()-150;
+				var bl_h = $('.jcrop-holder > .jcrop-tracker').height()+$(actionsNode).height();
+                var pos_top = scr_h/2 - bl_h/2;
+				$(result).css('top',pos_top);
+				$('#JcropOverlay'+uniqueId_2).css('display','block');
+			},
+			appendToDiv = function (img){
+				var content;
+				if (!(img.src || img instanceof HTMLCanvasElement)) {
+					content = $('<span>Loading image file failed</span>');
+					result.children().replaceWith(content);
+					errorFunction_2();
+				} else {
+					var object = $('#jcrop_image'+uniqueId_2);
+					object.attr('src',img.toDataURL());
+					$('.jcrop-holder').remove();
+					actionsNode.attr('style','display: none;');
+					result.attr('style','');
+					//$('canvas').remove();
+					$('#JcropOverlay'+uniqueId_2).addClass('hide');
+					successFunction_2(object,img.toDataURL());
+				}
+			},
+			displayImage = function (file, options) {
+				currentFile = file;
+				if (!loadImage(file, replaceResults, options)) {
+					result.children().replaceWith(
+						$('<span>Your browser does not support the URL or FileReader API.</span>')
+					);
+				}
+			},
+			displayExifData = function (exif) {
+				var thumbnail = exif.get('Thumbnail'),
+					tags = exif.getAll(),
+					table = exifNode.find('table').empty(),
+					row = $('<tr></tr>'),
+					cell = $('<td></td>'),
+					prop;
+				if (thumbnail) {
+					thumbNode.empty();
+					loadImage(thumbnail, function (img) {
+						thumbNode.append(img).show();
+					}, {orientation: exif.get('Orientation')});
+				}
+				for (prop in tags) {
+					if (tags.hasOwnProperty(prop)) {
+						table.append(
+							row.clone()
+								.append(cell.clone().text(prop))
+								.append(cell.clone().text(tags[prop]))
+						);
+					}
+				}
+				exifNode.show();
+			},
+            dropChangeHandler = function (e) {
+                e.preventDefault();
+                e = e.originalEvent;
+                var containerWidth = eval('resultMaxWidth_2');
+                var windowWidth = window.window.innerWidth;
+                var windowHeight = window.window.innerHeight;
+                var containerHeight =  windowHeight / 2 + (windowHeight / 3) ;
+                if (windowWidth < containerWidth) {
+                    containerWidth = windowWidth - 20;
+                }
+                var target = e.dataTransfer || e.target,
+                    file = target && target.files && target.files[0],
+                    options = {
+                        maxWidth: containerWidth,
+                        maxHeight: containerHeight,
+                        canvas: true
+                    };
+                if (!file) {
+                    return;
+                }
+                thumbNode.hide();
+                loadImage.parseMetaData(file, function (data) {
+                    if (data.exif) {
+                        options.orientation = data.exif.get('Orientation');
+                        displayExifData(data.exif);
+                    }
+                    displayImage(file, options);
+                });
+            },
+			coordinates;
+		if (window.createObjectURL || window.URL || window.webkitURL || window.FileReader) {
+			result.children().hide();
+		}
+		$('#jcrop_fileinput'+uniqueId_2).on('change', dropChangeHandler);
+		$('#jcrop_edit'+uniqueId_2).on('click', function (event) {
+			event.preventDefault();
+			var imgNode = result.find('img, canvas'),
+				img = imgNode[0];
+			imgNode.Jcrop({
+				aspectRatio: aspectRatio_2,
+				setSelect: [40, 40, img.width - 40, img.height - 40],
+				minSize: minSize,
+				allowSelect: false,
+				onSelect: function (coords) {
+					coordinates = coords;
+				}
+			}).parent().on('click', function (event) {
+				event.preventDefault();
+			});
+		});
+		$('#jcrop_crop'+uniqueId_2).on('click', function (event) {
+			event.preventDefault();
+			var img = result.find('img, canvas')[0];
+			if (img && coordinates) {
+				appendToDiv(loadImage.scale(img, {
+					left: coordinates.x,
+					top: coordinates.y,
+					sourceWidth: coordinates.w,
+					sourceHeight: coordinates.h,
+					minWidth: resultMinWidth_2
+				}), event);
+				coordinates = null;
+			}
+		});
+		$('#jcrop_cancel'+uniqueId_2).on('click', function (event) {
+			$('.jcrop-holder').remove();
+			actionsNode.attr('style','display: none;');
+			result.attr('style','max-width: 350px;');
+			$('#JcropOverlay'+uniqueId_2).addClass('hide');
+			$('canvas').remove();
+		});
+		$('#load_image'+uniqueId_2).hover(function(){
+			$('#load_image_hover'+uniqueId_2).removeClass('hide');
+		}, function(){
+			$('#load_image_hover'+uniqueId_2).addClass('hide');
+		});
+
+	}
+});
+
+$(function () {
+
+    'use strict';
+    if (typeof unique_3 !== 'undefined'){
+           var uniqueId_3 = unique_3;
+
+
+
+		var minSize = [100,100/aspectRatio_3];
+		var result = $('#jcrop_result'+uniqueId_3),
+			exifNode = $('#exif'+uniqueId_3),
+			thumbNode = $('#thumbnail'+uniqueId_3),
+			actionsNode = $('#jcrop_actions'+uniqueId_3),
+			currentFile,
+			replaceResults = function (img) {
+				var content;
+				if (!(img.src || img instanceof HTMLCanvasElement)) {
+					content = $('<span>Loading image file failed</span>');
+					result.children().replaceWith(content);
+				} else {
+					result.prepend(img);
+					result.attr('style',resultStyle_3);
+					actionsNode.attr('style','text-align: center;');
+					$('#JcropOverlay'+uniqueId_3).removeClass('hide');
+					var imgNode = result.find('img, canvas'),
+						img = imgNode[0];
+					imgNode.Jcrop({
+						aspectRatio: aspectRatio_3,
+						setSelect: [40, 40, img.width - 40, img.height - 40],
+						minSize: minSize,
+						allowSelect: false,
+						onSelect: function (coords) {
+							coordinates = coords;
+						}
+					});
+				}
+				if (img.getContext) {
+					actionsNode.show();
+				}
+
+				var scr_w = $(window).width();
+				var bl_w = $(result).width();
+				var pos_left = scr_w/2 - bl_w/2;
+				$(result).css('left',pos_left);
+				var scr_h = $(window).height()-150;
+				var bl_h = $('.jcrop-tracker').height()+$(actionsNode).height();
+				var pos_top = scr_h/2 - bl_h/2;
+				$(result).css('top',pos_top);
+				$('#JcropOverlay'+uniqueId_3).css('display','block');
+			},
+			appendToDiv = function (img){
+				var content;
+				if (!(img.src || img instanceof HTMLCanvasElement)) {
+					content = $('<span>Loading image file failed</span>');
+					result.children().replaceWith(content);
+					errorFunction_3();
+				} else {
+					var object = $('#jcrop_image'+uniqueId_3);
+					object.attr('src',img.toDataURL());
+					$('.jcrop-holder').remove();
+					actionsNode.attr('style','display: none;');
+					result.attr('style','');
+					//$('canvas').remove();
+					$('#JcropOverlay'+uniqueId_3).addClass('hide');
+					successFunction_3(object,img.toDataURL());
+				}
+			},
+			displayImage = function (file, options) {
+				currentFile = file;
+				if (!loadImage(file, replaceResults, options)) {
+					result.children().replaceWith(
+						$('<span>Your browser does not support the URL or FileReader API.</span>')
+					);
+				}
+			},
+			displayExifData = function (exif) {
+				var thumbnail = exif.get('Thumbnail'),
+					tags = exif.getAll(),
+					table = exifNode.find('table').empty(),
+					row = $('<tr></tr>'),
+					cell = $('<td></td>'),
+					prop;
+				if (thumbnail) {
+					thumbNode.empty();
+					loadImage(thumbnail, function (img) {
+						thumbNode.append(img).show();
+					}, {orientation: exif.get('Orientation')});
+				}
+				for (prop in tags) {
+					if (tags.hasOwnProperty(prop)) {
+						table.append(
+							row.clone()
+								.append(cell.clone().text(prop))
+								.append(cell.clone().text(tags[prop]))
+						);
+					}
+				}
+				exifNode.show();
+			},
+            dropChangeHandler = function (e) {
+                e.preventDefault();
+                e = e.originalEvent;
+                var containerWidth = eval('resultMaxWidth_3');
+                var windowWidth = window.window.innerWidth;
+                var windowHeight = window.window.innerHeight;
+                var containerHeight =  windowHeight / 2 + (windowHeight / 3) ;
+                if (windowWidth < containerWidth) {
+                    containerWidth = windowWidth - 20;
+                }
+                var target = e.dataTransfer || e.target,
+                    file = target && target.files && target.files[0],
+                    options = {
+                        maxWidth: containerWidth,
+                        maxHeight: containerHeight,
+                        canvas: true
+                    };
+                if (!file) {
+                    return;
+                }
+                thumbNode.hide();
+                loadImage.parseMetaData(file, function (data) {
+                    if (data.exif) {
+                        options.orientation = data.exif.get('Orientation');
+                        displayExifData(data.exif);
+                    }
+                    displayImage(file, options);
+                });
+            },
+			coordinates;
+		if (window.createObjectURL || window.URL || window.webkitURL || window.FileReader) {
+			result.children().hide();
+		}
+		$('#jcrop_fileinput'+uniqueId_3).on('change', dropChangeHandler);
+		$('#jcrop_edit'+uniqueId_3).on('click', function (event) {
+			event.preventDefault();
+			var imgNode = result.find('img, canvas'),
+				img = imgNode[0];
+			imgNode.Jcrop({
+				aspectRatio: aspectRatio_3,
+				setSelect: [40, 40, img.width - 40, img.height - 40],
+				minSize: minSize,
+				allowSelect: false,
+				onSelect: function (coords) {
+					coordinates = coords;
+				}
+			}).parent().on('click', function (event) {
+				event.preventDefault();
+			});
+		});
+		$('#jcrop_crop'+uniqueId_3).on('click', function (event) {
+			event.preventDefault();
+			var img = result.find('img, canvas')[0];
+			if (img && coordinates) {
+				appendToDiv(loadImage.scale(img, {
+					left: coordinates.x,
+					top: coordinates.y,
+					sourceWidth: coordinates.w,
+					sourceHeight: coordinates.h,
+					minWidth: resultMinWidth_3
+				}), event);
+				coordinates = null;
+			}
+		});
+		$('#jcrop_cancel'+uniqueId_3).on('click', function (event) {
+			$('.jcrop-holder').remove();
+			actionsNode.attr('style','display: none;');
+			result.attr('style','max-width: 350px;');
+			$('#JcropOverlay'+uniqueId_3).addClass('hide');
+			$('canvas').remove();
+		});
+		$('#load_image'+uniqueId_3).hover(function(){
+			$('#load_image_hover'+uniqueId_3).removeClass('hide');
+		}, function(){
+			$('#load_image_hover'+uniqueId_3).addClass('hide');
+		});
+
+	}
+});
+
+$(function () {
+
+    'use strict';
+    if (typeof unique_4 !== 'undefined'){
+           var uniqueId_4 = unique_4;
+
+
+
+		var minSize = [100,100/aspectRatio_4];
+		var result = $('#jcrop_result'+uniqueId_4),
+			exifNode = $('#exif'+uniqueId_4),
+			thumbNode = $('#thumbnail'+uniqueId_4),
+			actionsNode = $('#jcrop_actions'+uniqueId_4),
+			currentFile,
+			replaceResults = function (img) {
+				var content;
+				if (!(img.src || img instanceof HTMLCanvasElement)) {
+					content = $('<span>Loading image file failed</span>');
+					result.children().replaceWith(content);
+				} else {
+					result.prepend(img);
+					result.attr('style',resultStyle_4);
+					actionsNode.attr('style','text-align: center;');
+					$('#JcropOverlay'+uniqueId_4).removeClass('hide');
+					var imgNode = result.find('img, canvas'),
+						img = imgNode[0];
+					imgNode.Jcrop({
+						aspectRatio: aspectRatio_4,
+						setSelect: [40, 40, img.width - 40, img.height - 40],
+						minSize: minSize,
+						allowSelect: false,
+						onSelect: function (coords) {
+							coordinates = coords;
+						}
+					});
+				}
+				if (img.getContext) {
+					actionsNode.show();
+				}
+
+				var scr_w = $(window).width();
+				var bl_w = $(result).width();
+				var pos_left = scr_w/2 - bl_w/2;
+				$(result).css('left',pos_left);
+				var scr_h = $(window).height()-150;
+				var bl_h = $('.jcrop-tracker').height()+$(actionsNode).height();
+				var pos_top = scr_h/2 - bl_h/2;
+				$(result).css('top',pos_top);
+				$('#JcropOverlay'+uniqueId_4).css('display','block');
+			},
+			appendToDiv = function (img){
+				var content;
+				if (!(img.src || img instanceof HTMLCanvasElement)) {
+					content = $('<span>Loading image file failed</span>');
+					result.children().replaceWith(content);
+					errorFunction_4();
+				} else {
+					var object = $('#jcrop_image'+uniqueId_4);
+					object.attr('src',img.toDataURL());
+					$('.jcrop-holder').remove();
+					actionsNode.attr('style','display: none;');
+					result.attr('style','');
+					//$('canvas').remove();
+					$('#JcropOverlay'+uniqueId_4).addClass('hide');
+					successFunction_4(object,img.toDataURL());
+				}
+			},
+			displayImage = function (file, options) {
+				currentFile = file;
+				if (!loadImage(file, replaceResults, options)) {
+					result.children().replaceWith(
+						$('<span>Your browser does not support the URL or FileReader API.</span>')
+					);
+				}
+			},
+			displayExifData = function (exif) {
+				var thumbnail = exif.get('Thumbnail'),
+					tags = exif.getAll(),
+					table = exifNode.find('table').empty(),
+					row = $('<tr></tr>'),
+					cell = $('<td></td>'),
+					prop;
+				if (thumbnail) {
+					thumbNode.empty();
+					loadImage(thumbnail, function (img) {
+						thumbNode.append(img).show();
+					}, {orientation: exif.get('Orientation')});
+				}
+				for (prop in tags) {
+					if (tags.hasOwnProperty(prop)) {
+						table.append(
+							row.clone()
+								.append(cell.clone().text(prop))
+								.append(cell.clone().text(tags[prop]))
+						);
+					}
+				}
+				exifNode.show();
+			},
+            dropChangeHandler = function (e) {
+                e.preventDefault();
+                e = e.originalEvent;
+                var containerWidth = eval('resultMaxWidth_4');
+                var windowWidth = window.window.innerWidth;
+                var windowHeight = window.window.innerHeight;
+                var containerHeight =  windowHeight / 2 + (windowHeight / 3) ;
+                if (windowWidth < containerWidth) {
+                    containerWidth = windowWidth - 20;
+                }
+                var target = e.dataTransfer || e.target,
+                    file = target && target.files && target.files[0],
+                    options = {
+                        maxWidth: containerWidth,
+                        maxHeight: containerHeight,
+                        canvas: true
+                    };
+                if (!file) {
+                    return;
+                }
+                thumbNode.hide();
+                loadImage.parseMetaData(file, function (data) {
+                    if (data.exif) {
+                        options.orientation = data.exif.get('Orientation');
+                        displayExifData(data.exif);
+                    }
+                    displayImage(file, options);
+                });
+            },
+			coordinates;
+		if (window.createObjectURL || window.URL || window.webkitURL || window.FileReader) {
+			result.children().hide();
+		}
+		$('#jcrop_fileinput'+uniqueId_4).on('change', dropChangeHandler);
+		$('#jcrop_edit'+uniqueId_4).on('click', function (event) {
+			event.preventDefault();
+			var imgNode = result.find('img, canvas'),
+				img = imgNode[0];
+			imgNode.Jcrop({
+				aspectRatio: aspectRatio_4,
+				setSelect: [40, 40, img.width - 40, img.height - 40],
+				minSize: minSize,
+				allowSelect: false,
+				onSelect: function (coords) {
+					coordinates = coords;
+				}
+			}).parent().on('click', function (event) {
+				event.preventDefault();
+			});
+		});
+		$('#jcrop_crop'+uniqueId_4).on('click', function (event) {
+			event.preventDefault();
+			var img = result.find('img, canvas')[0];
+			if (img && coordinates) {
+				appendToDiv(loadImage.scale(img, {
+					left: coordinates.x,
+					top: coordinates.y,
+					sourceWidth: coordinates.w,
+					sourceHeight: coordinates.h,
+					minWidth: resultMinWidth_4
+				}), event);
+				coordinates = null;
+			}
+		});
+		$('#jcrop_cancel'+uniqueId_4).on('click', function (event) {
+			$('.jcrop-holder').remove();
+			actionsNode.attr('style','display: none;');
+			result.attr('style','max-width: 350px;');
+			$('#JcropOverlay'+uniqueId_4).addClass('hide');
+			$('canvas').remove();
+		});
+		$('#load_image'+uniqueId_4).hover(function(){
+			$('#load_image_hover'+uniqueId_4).removeClass('hide');
+		}, function(){
+			$('#load_image_hover'+uniqueId_4).addClass('hide');
+		});
+
+	}
+});
+
+$(function () {
+
+    'use strict';
+    if (typeof unique_5 !== 'undefined'){
+           var uniqueId_5 = unique_5;
+
+
+
+		var minSize = [100,100/aspectRatio_5];
+		var result = $('#jcrop_result'+uniqueId_5),
+			exifNode = $('#exif'+uniqueId_5),
+			thumbNode = $('#thumbnail'+uniqueId_5),
+			actionsNode = $('#jcrop_actions'+uniqueId_5),
+			currentFile,
+			replaceResults = function (img) {
+				var content;
+				if (!(img.src || img instanceof HTMLCanvasElement)) {
+					content = $('<span>Loading image file failed</span>');
+					result.children().replaceWith(content);
+				} else {
+					result.prepend(img);
+					result.attr('style',resultStyle_5);
+					actionsNode.attr('style','text-align: center;');
+					$('#JcropOverlay'+uniqueId_5).removeClass('hide');
+					var imgNode = result.find('img, canvas'),
+						img = imgNode[0];
+					imgNode.Jcrop({
+						aspectRatio: aspectRatio_5,
+						setSelect: [40, 40, img.width - 40, img.height - 40],
+						minSize: minSize,
+						allowSelect: false,
+						onSelect: function (coords) {
+							coordinates = coords;
+						}
+					});
+				}
+				if (img.getContext) {
+					actionsNode.show();
+				}
+
+				var scr_w = $(window).width();
+				var bl_w = $(result).width();
+				var pos_left = scr_w/2 - bl_w/2;
+				$(result).css('left',pos_left);
+				var scr_h = $(window).height()-150;
+				var bl_h = $('.jcrop-tracker').height()+$(actionsNode).height();
+				var pos_top = scr_h/2 - bl_h/2;
+				$(result).css('top',pos_top);
+				$('#JcropOverlay'+uniqueId_5).css('display','block');
+			},
+			appendToDiv = function (img){
+				var content;
+				if (!(img.src || img instanceof HTMLCanvasElement)) {
+					content = $('<span>Loading image file failed</span>');
+					result.children().replaceWith(content);
+					errorFunction_5();
+				} else {
+					var object = $('#jcrop_image'+uniqueId_5);
+					object.attr('src',img.toDataURL());
+					$('.jcrop-holder').remove();
+					actionsNode.attr('style','display: none;');
+					result.attr('style','');
+					//$('canvas').remove();
+					$('#JcropOverlay'+uniqueId_5).addClass('hide');
+					successFunction_5(object,img.toDataURL());
+				}
+			},
+			displayImage = function (file, options) {
+				currentFile = file;
+				if (!loadImage(file, replaceResults, options)) {
+					result.children().replaceWith(
+						$('<span>Your browser does not support the URL or FileReader API.</span>')
+					);
+				}
+			},
+			displayExifData = function (exif) {
+				var thumbnail = exif.get('Thumbnail'),
+					tags = exif.getAll(),
+					table = exifNode.find('table').empty(),
+					row = $('<tr></tr>'),
+					cell = $('<td></td>'),
+					prop;
+				if (thumbnail) {
+					thumbNode.empty();
+					loadImage(thumbnail, function (img) {
+						thumbNode.append(img).show();
+					}, {orientation: exif.get('Orientation')});
+				}
+				for (prop in tags) {
+					if (tags.hasOwnProperty(prop)) {
+						table.append(
+							row.clone()
+								.append(cell.clone().text(prop))
+								.append(cell.clone().text(tags[prop]))
+						);
+					}
+				}
+				exifNode.show();
+			},
+            dropChangeHandler = function (e) {
+                e.preventDefault();
+                e = e.originalEvent;
+                var containerWidth = eval('resultMaxWidth_5');
+                var windowWidth = window.window.innerWidth;
+                var windowHeight = window.window.innerHeight;
+                var containerHeight =  windowHeight / 2 + (windowHeight / 3) ;
+                if (windowWidth < containerWidth) {
+                    containerWidth = windowWidth - 20;
+                }
+                var target = e.dataTransfer || e.target,
+                    file = target && target.files && target.files[0],
+                    options = {
+                        maxWidth: containerWidth,
+                        maxHeight: containerHeight,
+                        canvas: true
+                    };
+                if (!file) {
+                    return;
+                }
+                thumbNode.hide();
+                loadImage.parseMetaData(file, function (data) {
+                    if (data.exif) {
+                        options.orientation = data.exif.get('Orientation');
+                        displayExifData(data.exif);
+                    }
+                    displayImage(file, options);
+                });
+            },
+			coordinates;
+		if (window.createObjectURL || window.URL || window.webkitURL || window.FileReader) {
+			result.children().hide();
+		}
+		$('#jcrop_fileinput'+uniqueId_5).on('change', dropChangeHandler);
+		$('#jcrop_edit'+uniqueId_5).on('click', function (event) {
+			event.preventDefault();
+			var imgNode = result.find('img, canvas'),
+				img = imgNode[0];
+			imgNode.Jcrop({
+				aspectRatio: aspectRatio_5,
+				setSelect: [40, 40, img.width - 40, img.height - 40],
+				minSize: minSize,
+				allowSelect: false,
+				onSelect: function (coords) {
+					coordinates = coords;
+				}
+			}).parent().on('click', function (event) {
+				event.preventDefault();
+			});
+		});
+		$('#jcrop_crop'+uniqueId_5).on('click', function (event) {
+			event.preventDefault();
+			var img = result.find('img, canvas')[0];
+			if (img && coordinates) {
+				appendToDiv(loadImage.scale(img, {
+					left: coordinates.x,
+					top: coordinates.y,
+					sourceWidth: coordinates.w,
+					sourceHeight: coordinates.h,
+					minWidth: resultMinWidth_5
+				}), event);
+				coordinates = null;
+			}
+		});
+		$('#jcrop_cancel'+uniqueId_5).on('click', function (event) {
+			$('.jcrop-holder').remove();
+			actionsNode.attr('style','display: none;');
+			result.attr('style','max-width: 350px;');
+			$('#JcropOverlay'+uniqueId_5).addClass('hide');
+			$('canvas').remove();
+		});
+		$('#load_image'+uniqueId_5).hover(function(){
+			$('#load_image_hover'+uniqueId_5).removeClass('hide');
+		}, function(){
+			$('#load_image_hover'+uniqueId_5).addClass('hide');
+		});
+
+	}
+});
+
